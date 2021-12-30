@@ -12,6 +12,7 @@ FPS = 60
 
 all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
+empty_group = pygame.sprite.Group()
 
 
 def terminate():
@@ -91,9 +92,9 @@ def generate_level(level):
 
 
 class Road(pygame.sprite.Sprite):
-    def __init__(self, x, y, mode, rotation=0):
+    def __init__(self, x, y, m, rotation=0):
         super().__init__(tiles_group, all_sprites)
-        self.mode = mode
+        self.mode = m
         self.rotation = rotation
         self.image = self.generate_road_image()
         self.rect = self.image.get_rect()
@@ -112,10 +113,11 @@ class Road(pygame.sprite.Sprite):
 
 class Empty(pygame.sprite.Sprite):
     def __init__(self, x, y):
-        super().__init__(tiles_group, all_sprites)
-        self.image = load_image('house.png')
+        super().__init__(empty_group, tiles_group, all_sprites)
+        self.image = load_image('empty.png')
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x * tile_width, y * tile_height
+        self.mask = pygame.mask.from_surface(self.image)
 
 
 class Player(pygame.sprite.Sprite):
@@ -123,6 +125,7 @@ class Player(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = load_image('car.png')
         self.start_image = self.image
+        self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = 25 + x * tile_width, 25 + y * tile_height
         self.max_front_speed = 30
@@ -131,6 +134,7 @@ class Player(pygame.sprite.Sprite):
         self.rotation = 0
         self.dx = 0
         self.dy = 0
+        self.f = False
 
     def update_speed(self, m):
         if m == '+' and self.speed < self.max_front_speed:
@@ -146,8 +150,16 @@ class Player(pygame.sprite.Sprite):
         self.dy = sin(rad) * self.speed * -1
 
     def update(self):
-        self.rect.x += round(self.dx)
-        self.rect.y += round(self.dy)
+        self.f = self.check_collide()
+        if not self.f:
+            self.rect.x += round(self.dx)
+            self.rect.y += round(self.dy)
+
+    def check_collide(self):
+        for sprite in empty_group:
+            if pygame.sprite.collide_mask(self, sprite):
+                return True
+        return False
 
     def breaking(self):
         if self.speed >= 1:
@@ -164,22 +176,25 @@ class Player(pygame.sprite.Sprite):
             self.speed += 0.125
 
     def turning(self, t):
-        if t == '+' and self.speed:
+        if t == '+' and self.speed and not self.f:
             if abs(self.speed) < self.max_front_speed / 2:
                 self.rotation += 0.2 * self.speed
             else:
                 self.rotation += 0.2 * (self.max_front_speed - self.speed + 5)
-        elif t == '-' and self.speed:
+        elif t == '-' and self.speed and not self.f:
             if abs(self.speed) < self.max_front_speed / 2:
                 self.rotation -= 0.2 * self.speed
             else:
                 self.rotation -= 0.2 * (self.max_front_speed - self.speed + 5)
-        self.blitRotate()
+        self.image = self.blit_rotate()
+        self.mask = pygame.mask.from_surface(self.image)
 
-    def blitRotate(self):
-        rotated_image = pygame.transform.rotate(self.image, self.rotation)
-        new_rect = rotated_image.get_rect(center=self.image.get_rect(topleft=(self.rect.x, self.rect.y)).center)
+    def blit_rotate(self):
+        rotated_image = pygame.transform.rotate(self.start_image, self.rotation)
+        new_rect = rotated_image.get_rect(center=self.start_image.get_rect(
+            topleft=(self.rect.x, self.rect.y)).center)
         screen.blit(rotated_image, new_rect.topleft)
+        return rotated_image
 
 
 class Camera:
