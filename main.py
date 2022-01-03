@@ -14,6 +14,7 @@ FPS = 60
 all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 empty_group = pygame.sprite.Group()
+police_group = pygame.sprite.Group()
 covers = []
 
 
@@ -22,16 +23,16 @@ def terminate():
     sys.exit()
 
 
-def load_image(name, colorkey=None):
+def load_image(name, color_key=None):
     filename = os.path.join('data', name)
     if not os.path.isfile(filename):
         print('ФАЙЛА НЕТ: ' + filename)
         sys.exit()
     image = pygame.image.load(filename)
-    if colorkey is not None:
-        if colorkey == 1:
-            colorkey = image.get_at((1, 1))
-        image.set_colorkey(colorkey)
+    if color_key is not None:
+        if color_key == 1:
+            color_key = image.get_at((1, 1))
+        image.set_colorkey(color_key)
     else:
         image = image.convert_alpha()
     return image
@@ -60,13 +61,11 @@ def generate_level(level):
     f = True
     gamer = None
     finish_tile = None
+    modification_tile = None
     len_x = len(level[0])
     len_y = len(level)
     for y in range(len_y):
         for x in range(len_x):
-            if type(new_level[y][x]) == Finish:
-                continue
-
             if level[y][x] == '#':
                 new_level[y][x] = Empty(x, y)
 
@@ -88,7 +87,10 @@ def generate_level(level):
             elif level[y][x] == 'X':
                 new_level[y][x] = Police(x, y, *create_road_direction(level, x, y))
 
-    return new_level, gamer, finish_tile
+            elif level[y][x] == '$':
+                modification_tile = new_level[y][x] = Modification(x, y, *create_road_direction(level, x, y))
+
+    return new_level, gamer, finish_tile, modification_tile
 
 
 def create_road_direction(level, x, y):
@@ -117,11 +119,13 @@ def create_road_direction(level, x, y):
         return 'L'
     elif compare_road_type(level[y][x + 1]) or compare_road_type(level[y][x - 1]):
         return 'I', 90
-    return 'I'
+    elif compare_road_type(level[y + 1][x]) or compare_road_type(level[y - 1][x]):
+        return 'I'
+    return 'P'
 
 
 def compare_road_type(t):
-    if t == '@' or t == 'X' or t == '.':
+    if t == '.' or t == 'X' or t == '@' or t == '$':
         return True
     return False
 
@@ -160,13 +164,46 @@ class Road(pygame.sprite.Sprite):
 class Police(Road):
     def __init__(self, x, y, m, rotation=0):
         super().__init__(x, y, m, rotation)
-        empty_group.add(self)
+        police_group.add(self)
         covers.append(self)
         self.police_image = pygame.transform.rotate(load_image('police_car.png'), 90 * randint(0, 3))
         self.mask = pygame.mask.from_surface(self.police_image)
+        self.f = True
 
     def show(self):
-        screen.blit(self.police_image, (self.rect.x, self.rect.y))
+        if self.f:
+            screen.blit(self.police_image, (self.rect.x, self.rect.y))
+
+
+class Modification(Road):
+    def __init__(self, x, y, m, rotation=0):
+        super().__init__(x, y, m, rotation)
+        covers.append(self)
+        self.modification_image = load_image('modification_image.png')
+        self.mask = pygame.mask.from_surface(self.modification_image)
+        self.delta = 0
+        self.direction = False
+        self.f = True
+
+    def check_modify(self):
+        if pygame.sprite.collide_mask(self, player):
+            player.modify = True
+            return True
+        return False
+
+    def show(self):
+        if self.check_modify():
+            self.f = False
+        elif self.f:
+            screen.blit(self.modification_image, (self.rect.x, self.rect.y + self.delta))
+            if self.delta <= -15:
+                self.direction = False
+            if self.delta >= 15:
+                self.direction = True
+            if self.direction:
+                self.delta -= 1
+            else:
+                self.delta += 1
 
 
 class Finish(Road):
@@ -200,6 +237,7 @@ class Player(pygame.sprite.Sprite):
         self.dx = 0
         self.dy = 0
         self.f = False
+        self.modify = False
 
     def update_speed(self, m):
         if m == '+' and self.speed < self.max_front_speed:
@@ -217,14 +255,22 @@ class Player(pygame.sprite.Sprite):
     def update(self):
         if not self.f:
             self.f = self.check_collide()
-        if not self.f:
-            self.rect.x += round(self.dx)
-            self.rect.y += round(self.dy)
+            if not self.f:
+                self.rect.x += round(self.dx)
+                self.rect.y += round(self.dy)
 
     def check_collide(self):
         for sprite in empty_group:
             if pygame.sprite.collide_mask(self, sprite):
                 return True
+        for sprite in police_group:
+            if pygame.sprite.collide_mask(self, sprite):
+                if self.modify:
+                    self.modify = False
+                    sprite.f = False
+                    return False
+                if sprite.f:
+                    return True
         return False
 
     def breaking(self):
@@ -288,7 +334,7 @@ class Camera:
 
 
 camera = Camera()
-city, player, finish = generate_level(load_level('map.txt'))
+city, player, finish, modify = generate_level(load_level('map.txt'))
 camera.update_camera(player)
 mode = '='
 turning = '!'
