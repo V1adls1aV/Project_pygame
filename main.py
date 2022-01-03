@@ -2,6 +2,7 @@ import pygame
 import os
 import sys
 from math import sin, cos, pi
+from random import randint
 
 pygame.init()
 size = WIDTH, HEIGHT = 1920, 1020
@@ -57,38 +58,77 @@ def generate_level(level):
     new_level = [el[:] for el in level]
     f = True
     gamer = None
-    for y in range(len(level)):
-        for x in range(len(level[0])):
+    finish_tile = None
+    len_x = len(level[0])
+    len_y = len(level)
+    for y in range(len_y):
+        if '@' in level[y]:
+            x = level[y].index('@')
+            if level[y][x] == '@':
+                finish_tile = level[y][x] = Finish(x, y, *create_road_direction(level, x, y))
+            level[y][x] = '.'
+            break
+
+    for y in range(len_y):
+        for x in range(len_x):
+            if type(new_level[y][x]) == Finish:
+                continue
+
             if level[y][x] == '#':
                 new_level[y][x] = Empty(x, y)
+
             elif level[y][x] == '.':
-                if level[y + 1][x] == '.' and level[y - 1][x] == '.'\
-                        and level[y][x + 1] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, '+')
-                elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x + 1] == '.':
-                    new_level[y][x] = Road(x, y, 'V')
-                elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'V', 180)
-                elif level[y + 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'V', 270)
-                elif level[y - 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'V', 90)
-                elif level[y + 1][x] == '.' and level[y][x + 1] == '.':
-                    new_level[y][x] = Road(x, y, 'L', 270)
-                elif level[y + 1][x] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'L', 180)
-                elif level[y - 1][x] == '.' and level[y][x + 1] == '.':
-                    new_level[y][x] = Road(x, y, 'L')
-                elif level[y - 1][x] == '.' and level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'L', 90)
-                elif level[y + 1][x] == '.' or level[y - 1][x] == '.':
-                    new_level[y][x] = Road(x, y, 'I')
-                elif level[y][x + 1] == '.' or level[y][x - 1] == '.':
-                    new_level[y][x] = Road(x, y, 'I', 90)
+                new_level[y][x] = Road(x, y, *create_road_direction(level, x, y))
                 if f:
                     gamer = Player(x, y)
                     f = False
-    return new_level, gamer
+
+            elif level[y][x] == ',':
+                level[y][x] = Road(x, y, 'P')
+                if f:
+                    gamer = Player(x, y)
+                    f = False
+
+    return new_level, gamer, finish_tile
+
+
+def create_road_direction(level, x, y):
+    if level[y + 1][x] == '.' and level[y - 1][x] == '.' \
+            and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+        return '+'
+    elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x + 1] == '.':
+        return 'V'
+    elif level[y - 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+        return 'V', 90
+    elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x - 1] == '.':
+        return 'V', 180
+    elif level[y + 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+        return 'V', 270
+    elif level[y + 1][x] == '.' and level[y][x + 1] == '.':
+        return 'L', 270
+    elif level[y + 1][x] == '.' and level[y][x - 1] == '.':
+        return 'L', 180
+    elif level[y - 1][x] == '.' and level[y][x - 1] == '.':
+        return 'L', 90
+    elif level[y - 1][x] == '.' and level[y][x + 1] == '.':
+        return 'L'
+    elif level[y][x + 1] == '.' or level[y][x - 1] == '.':
+        return 'I', 90
+    return 'I'
+
+
+class Empty(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__(empty_group, tiles_group, all_sprites)
+        self.image = load_image(f'house_{randint(1, 5)}.png')
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect = self.image.get_rect()
+        self.rect.x, self.rect.y = x * tile_width, y * tile_height
+
+
+class Police(Empty):
+    def __init__(self, x, y):
+        super().__init__(x, y)
 
 
 class Road(pygame.sprite.Sprite):
@@ -109,15 +149,23 @@ class Road(pygame.sprite.Sprite):
             return pygame.transform.rotate(load_image('corner.png'), self.rotation)
         elif self.mode == 'I':
             return pygame.transform.rotate(load_image('line.png'), self.rotation)
+        elif self.mode == 'P':
+            return pygame.transform.rotate(load_image('parking.png'), 90 * randint(0, 3))
 
 
-class Empty(pygame.sprite.Sprite):
-    def __init__(self, x, y):
-        super().__init__(empty_group, tiles_group, all_sprites)
-        self.image = load_image('empty.png')
-        self.rect = self.image.get_rect()
-        self.rect.x, self.rect.y = x * tile_width, y * tile_height
+class Finish(Road):
+    def __init__(self, x, y, m, rotation=0):
+        super().__init__(x, y, m, rotation)
         self.mask = pygame.mask.from_surface(self.image)
+        self.finish_image = load_image('finish.png')
+
+    def check_finish(self, gamer):
+        offset = (gamer.rect.x - self.rect.x, gamer.rect.y - self.rect.y)
+        if gamer.mask.count() == self.mask.overlap_area(gamer.mask, offset):
+            gamer.f = True
+
+    def show_finish(self):
+        screen.blit(self.finish_image, (self.rect.x, self.rect.y))
 
 
 class Player(pygame.sprite.Sprite):
@@ -150,7 +198,8 @@ class Player(pygame.sprite.Sprite):
         self.dy = sin(rad) * self.speed * -1
 
     def update(self):
-        self.f = self.check_collide()
+        if not self.f:
+            self.f = self.check_collide()
         if not self.f:
             self.rect.x += round(self.dx)
             self.rect.y += round(self.dy)
@@ -222,7 +271,7 @@ class Camera:
 
 
 camera = Camera()
-city, player = generate_level(load_level('map.txt'))
+city, player, finish = generate_level(load_level('map.txt'))
 camera.update_camera(player)
 mode = '='
 turning = '!'
@@ -248,11 +297,13 @@ while True:
         else:
             turning = '!'
 
-    screen.fill((0, 0, 0))
+    screen.fill((0, 100, 0))
     tiles_group.draw(screen)
+    finish.show_finish()
     player.turning(turning)
     player.update_speed(mode)
     player.update()
+    finish.check_finish(player)
     camera.update_camera(player)
     pygame.display.flip()
     clock.tick(FPS)
