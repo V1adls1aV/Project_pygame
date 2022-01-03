@@ -14,6 +14,7 @@ FPS = 60
 all_sprites = pygame.sprite.Group()
 tiles_group = pygame.sprite.Group()
 empty_group = pygame.sprite.Group()
+covers = []
 
 
 def terminate():
@@ -62,14 +63,6 @@ def generate_level(level):
     len_x = len(level[0])
     len_y = len(level)
     for y in range(len_y):
-        if '@' in level[y]:
-            x = level[y].index('@')
-            if level[y][x] == '@':
-                finish_tile = level[y][x] = Finish(x, y, *create_road_direction(level, x, y))
-            level[y][x] = '.'
-            break
-
-    for y in range(len_y):
         for x in range(len_x):
             if type(new_level[y][x]) == Finish:
                 continue
@@ -89,32 +82,48 @@ def generate_level(level):
                     gamer = Player(x, y)
                     f = False
 
+            elif level[y][x] == '@':
+                finish_tile = level[y][x] = Finish(x, y, *create_road_direction(level, x, y))
+
+            elif level[y][x] == 'X':
+                new_level[y][x] = Police(x, y, *create_road_direction(level, x, y))
+
     return new_level, gamer, finish_tile
 
 
 def create_road_direction(level, x, y):
-    if level[y + 1][x] == '.' and level[y - 1][x] == '.' \
-            and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+    if compare_road_type(level[y + 1][x]) and compare_road_type(level[y - 1][x]) \
+            and compare_road_type(level[y][x + 1]) and compare_road_type(level[y][x - 1]):
         return '+'
-    elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x + 1] == '.':
+    elif compare_road_type(level[y + 1][x]) and compare_road_type(level[y - 1][x]) \
+            and compare_road_type(level[y][x + 1]):
         return 'V'
-    elif level[y - 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+    elif compare_road_type(level[y - 1][x]) and compare_road_type(level[y][x + 1]) \
+            and compare_road_type(level[y][x - 1]):
         return 'V', 90
-    elif level[y + 1][x] == '.' and level[y - 1][x] == '.' and level[y][x - 1] == '.':
+    elif compare_road_type(level[y + 1][x]) and compare_road_type(level[y - 1][x]) \
+            and compare_road_type(level[y][x - 1]):
         return 'V', 180
-    elif level[y + 1][x] == '.' and level[y][x + 1] == '.' and level[y][x - 1] == '.':
+    elif compare_road_type(level[y + 1][x]) and compare_road_type(level[y][x + 1]) \
+            and compare_road_type(level[y][x - 1]):
         return 'V', 270
-    elif level[y + 1][x] == '.' and level[y][x + 1] == '.':
+    elif compare_road_type(level[y + 1][x]) and compare_road_type(level[y][x + 1]):
         return 'L', 270
-    elif level[y + 1][x] == '.' and level[y][x - 1] == '.':
+    elif compare_road_type(level[y + 1][x]) and compare_road_type(level[y][x - 1]):
         return 'L', 180
-    elif level[y - 1][x] == '.' and level[y][x - 1] == '.':
+    elif compare_road_type(level[y - 1][x]) and compare_road_type(level[y][x - 1]):
         return 'L', 90
-    elif level[y - 1][x] == '.' and level[y][x + 1] == '.':
+    elif compare_road_type(level[y - 1][x]) and compare_road_type(level[y][x + 1]):
         return 'L'
-    elif level[y][x + 1] == '.' or level[y][x - 1] == '.':
+    elif compare_road_type(level[y][x + 1]) or compare_road_type(level[y][x - 1]):
         return 'I', 90
     return 'I'
+
+
+def compare_road_type(t):
+    if t == '@' or t == 'X' or t == '.':
+        return True
+    return False
 
 
 class Empty(pygame.sprite.Sprite):
@@ -124,11 +133,6 @@ class Empty(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x * tile_width, y * tile_height
-
-
-class Police(Empty):
-    def __init__(self, x, y):
-        super().__init__(x, y)
 
 
 class Road(pygame.sprite.Sprite):
@@ -153,9 +157,22 @@ class Road(pygame.sprite.Sprite):
             return pygame.transform.rotate(load_image('parking.png'), 90 * randint(0, 3))
 
 
+class Police(Road):
+    def __init__(self, x, y, m, rotation=0):
+        super().__init__(x, y, m, rotation)
+        empty_group.add(self)
+        covers.append(self)
+        self.police_image = pygame.transform.rotate(load_image('police_car.png'), 90 * randint(0, 3))
+        self.mask = pygame.mask.from_surface(self.police_image)
+
+    def show(self):
+        screen.blit(self.police_image, (self.rect.x, self.rect.y))
+
+
 class Finish(Road):
     def __init__(self, x, y, m, rotation=0):
         super().__init__(x, y, m, rotation)
+        covers.append(self)
         self.mask = pygame.mask.from_surface(self.image)
         self.finish_image = load_image('finish.png')
 
@@ -164,7 +181,7 @@ class Finish(Road):
         if gamer.mask.count() == self.mask.overlap_area(gamer.mask, offset):
             gamer.f = True
 
-    def show_finish(self):
+    def show(self):
         screen.blit(self.finish_image, (self.rect.x, self.rect.y))
 
 
@@ -299,7 +316,8 @@ while True:
 
     screen.fill((0, 100, 0))
     tiles_group.draw(screen)
-    finish.show_finish()
+    for cover in covers:
+        cover.show()
     player.turning(turning)
     player.update_speed(mode)
     player.update()
