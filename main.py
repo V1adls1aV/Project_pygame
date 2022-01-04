@@ -170,9 +170,30 @@ class Police(Road):
         self.mask = pygame.mask.from_surface(self.police_image)
         self.f = True
 
+        self.frames = []
+        self.now_frame = 0
+        self.boom_f = False
+        self.boom_image = None
+        self.frames_set = load_image('boom.png')
+        self.generate_frames(8, 4)
+
     def show(self):
         if self.f:
             screen.blit(self.police_image, (self.rect.x, self.rect.y))
+        elif self.boom_f and self.now_frame < 25:
+            self.change_image()
+
+    def generate_frames(self, columns, rows):
+        w, h = self.frames_set.get_size()
+        for i in range(rows):
+            for j in range(columns):
+                self.frames.append(self.frames_set.subsurface(
+                    pygame.Rect((j * w // columns, i * h // rows), self.rect.size)))
+
+    def change_image(self):
+        self.boom_image = self.frames[int(self.now_frame)]
+        screen.blit(self.boom_image, (self.rect.x, self.rect.y))
+        self.now_frame += 1
 
 
 class Modification(Road):
@@ -183,6 +204,9 @@ class Modification(Road):
         self.mask = pygame.mask.from_surface(self.modification_image)
         self.delta = 0
         self.direction = False
+        self.animation = False
+        self.new_size = 280
+        self.rotation = 0
         self.f = True
 
     def check_modify(self):
@@ -192,8 +216,16 @@ class Modification(Road):
         return False
 
     def show(self):
-        if self.check_modify():
+        if self.animation and self.new_size:
+            screen.blit(pygame.transform.scale(pygame.transform.rotate(self.modification_image, self.rotation),
+                        (self.new_size, self.new_size)),
+                        (self.rect.x + (300 - self.new_size) // 2,
+                         self.rect.y + (self.delta + 300 - self.new_size) // 2))
+            self.rotation += 10
+            self.new_size -= 20
+        elif self.check_modify():
             self.f = False
+            self.animation = True
         elif self.f:
             screen.blit(self.modification_image, (self.rect.x, self.rect.y + self.delta))
             if self.delta <= -15:
@@ -268,6 +300,7 @@ class Player(pygame.sprite.Sprite):
                 if self.modify:
                     self.modify = False
                     sprite.f = False
+                    sprite.boom_f = True
                     return False
                 if sprite.f:
                     return True
