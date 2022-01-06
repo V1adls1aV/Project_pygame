@@ -130,6 +130,52 @@ def compare_road_type(t):
     return False
 
 
+def start_screen():
+    menu = Menu()
+    menu.add_option('Начать игру', lambda: pygame.quit)
+    menu.add_option('Выйти', lambda: terminate())
+
+    running = True
+    while running:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                terminate()
+
+            but = pygame.key.get_pressed()
+            if but[pygame.K_UP]:
+                menu.now_button -= 1
+            if but[pygame.K_DOWN]:
+                menu.now_button += 1
+            if but[pygame.K_SPACE]:
+                running = False
+                menu.choose()
+        screen.fill((0, 0, 0))
+        menu.draw(100, 100, 100)
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+class Menu:
+    def __init__(self):
+        self.buttons = []
+        self.functions = {}
+        self.now_button = 0
+
+    def add_option(self, option, function):
+        self.buttons.append(option)
+        self.functions[option] = function
+
+    def draw(self, x, y, delta_h):
+        font = pygame.font.Font(None, 50)
+        for key in self.buttons:
+            screen.blit(font.render(key, True, pygame.Color('white')), (x, y))
+            y += delta_h
+
+    def choose(self):
+        now = max(0, min(self.now_button, len(self.buttons) - 1))
+        self.functions[self.buttons[now]]()
+
+
 class Empty(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(empty_group, tiles_group, all_sprites)
@@ -366,6 +412,7 @@ class Camera:
             self.apply(sprite)
 
 
+start_screen()
 camera = Camera()
 city, player, finish, modify = generate_level(load_level('map.txt'))
 camera.update_camera(player)
@@ -376,19 +423,19 @@ while True:
         if event.type == pygame.QUIT:
             terminate()
 
-        key = pygame.key.get_pressed()
-        if key[pygame.K_w]:
+        button = pygame.key.get_pressed()
+        if button[pygame.K_w]:
             mode = '+'
-        elif key[pygame.K_s]:
+        elif button[pygame.K_s]:
             mode = '-'
-        elif key[pygame.K_SPACE]:
+        elif button[pygame.K_SPACE]:
             mode = '!'
         else:
             mode = '='
 
-        if key[pygame.K_a]:
+        if button[pygame.K_a]:
             turning = '+'
-        elif key[pygame.K_d]:
+        elif button[pygame.K_d]:
             turning = '-'
         else:
             turning = '!'
