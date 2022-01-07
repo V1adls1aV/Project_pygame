@@ -132,25 +132,70 @@ def compare_road_type(t):
 
 def start_screen():
     menu = Menu()
-    menu.add_option('Начать игру', lambda: pygame.quit)
-    menu.add_option('Выйти', lambda: terminate())
+    menu.add_option('Начать игру', None)
+    menu.add_option('Выйти', terminate)
 
-    running = True
-    while running:
+    background = load_image('start_screen.png')
+    run = True
+    while run:
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 terminate()
 
             but = pygame.key.get_pressed()
             if but[pygame.K_UP]:
-                menu.now_button -= 1
+                menu.change(-1)
             if but[pygame.K_DOWN]:
-                menu.now_button += 1
+                menu.change(1)
             if but[pygame.K_SPACE]:
-                running = False
-                menu.choose()
+                run = menu.choose()
+
         screen.fill((0, 0, 0))
+        screen.blit(background, (0, 0))
         menu.draw(100, 100, 100)
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def end_screen(res):
+    rotation = 0
+    new_size = 1200
+    font_size = 800
+    victory_font = None
+    h = -470
+    if res is not None:
+        background = load_image('win_screen.png')
+        result_image = res
+        victory_font = pygame.font.Font(None, 500)
+    else:
+        background = load_image('defeat_screen.png')
+        result_image = load_image('banned.png')
+
+    run = True
+    while run:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                terminate()
+
+        screen.fill((0, 0, 0))
+        screen.blit(background, (0, 0))
+        if res is not None:
+            font = pygame.font.Font(None, font_size)
+            if font_size > 450:
+                font_size -= 15
+                rotation += 15
+                h += 20
+            screen.blit(victory_font.render('VICTORY', True, (255, 155, 0)), (192, h))
+            screen.blit(pygame.transform.rotate(
+                font.render(str(result_image), True, (255, 155, 0)), rotation),
+                ((WIDTH - font_size) // 2, (HEIGHT - font_size) // 2))
+        else:
+            screen.blit(pygame.transform.scale(pygame.transform.rotate(
+                result_image, rotation), (new_size, new_size)),
+                ((WIDTH - new_size) // 2, (HEIGHT - new_size) // 2))
+            if new_size > 850:
+                new_size -= 15
+                rotation += 15
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -166,14 +211,24 @@ class Menu:
         self.functions[option] = function
 
     def draw(self, x, y, delta_h):
-        font = pygame.font.Font(None, 50)
-        for key in self.buttons:
-            screen.blit(font.render(key, True, pygame.Color('white')), (x, y))
+        font = pygame.font.Font(None, 100)
+        for i in range(len(self.buttons)):
+            if i == self.now_button:
+                screen.blit(font.render(self.buttons[i], True, (255, 155, 0)), (x, y))
+            else:
+                screen.blit(font.render(self.buttons[i], True, (255, 255, 0)), (x, y))
             y += delta_h
 
+    def change(self, delta=0):
+        if delta:
+            self.now_button += delta
+        self.now_button = max(0, min(self.now_button, len(self.buttons) - 1))
+
     def choose(self):
-        now = max(0, min(self.now_button, len(self.buttons) - 1))
-        self.functions[self.buttons[now]]()
+        if self.functions[self.buttons[self.now_button]]:
+            self.functions[self.buttons[self.now_button]]()
+            return True
+        return False
 
 
 class Empty(pygame.sprite.Sprite):
@@ -263,10 +318,11 @@ class Modification(Road):
 
     def show(self):
         if self.animation and self.new_size:
-            screen.blit(pygame.transform.scale(pygame.transform.rotate(self.modification_image, self.rotation),
-                        (self.new_size, self.new_size)),
-                        (self.rect.x + (300 - self.new_size) // 2,
-                         self.rect.y + (self.delta + 300 - self.new_size) // 2))
+            screen.blit(pygame.transform.scale(pygame.transform.rotate(
+                self.modification_image, self.rotation),
+                (self.new_size, self.new_size)),
+                (self.rect.x + (300 - self.new_size) // 2,
+                 self.rect.y + (self.delta + 300 - self.new_size) // 2))
             self.rotation += 10
             self.new_size -= 20
         elif self.check_modify():
@@ -295,6 +351,10 @@ class Finish(Road):
         offset = (gamer.rect.x - self.rect.x, gamer.rect.y - self.rect.y)
         if gamer.mask.count() == self.mask.overlap_area(gamer.mask, offset):
             gamer.f = True
+            return gamer.get_time(), True
+        if gamer.f:
+            return None, True
+        return None, None
 
     def show(self):
         screen.blit(self.finish_image, (self.rect.x, self.rect.y))
@@ -316,6 +376,7 @@ class Player(pygame.sprite.Sprite):
         self.dy = 0
         self.f = False
         self.modify = False
+        self.start_time = None
 
     def update_speed(self, m):
         if m == '+' and self.speed < self.max_front_speed:
@@ -329,6 +390,8 @@ class Player(pygame.sprite.Sprite):
         rad = self.rotation * pi / 180
         self.dx = cos(rad) * self.speed
         self.dy = sin(rad) * self.speed * -1
+        if self.speed and not self.start_time:
+            self.start_time = pygame.time.get_ticks()
 
     def update(self):
         if not self.f:
@@ -380,12 +443,15 @@ class Player(pygame.sprite.Sprite):
         self.image = self.blit_rotate()
         self.mask = pygame.mask.from_surface(self.image)
 
-    def blit_rotate(self):
+    def blit_rotate(self):  # возвращаем изображение с повёрнутой машиной
         rotated_image = pygame.transform.rotate(self.start_image, self.rotation)
         new_rect = rotated_image.get_rect(center=self.start_image.get_rect(
             topleft=(self.rect.x, self.rect.y)).center)
         screen.blit(rotated_image, new_rect.topleft)
         return rotated_image
+
+    def get_time(self):
+        return (pygame.time.get_ticks() - self.start_time) // 10 / 100
 
 
 class Camera:
@@ -418,13 +484,15 @@ city, player, finish, modify = generate_level(load_level('map.txt'))
 camera.update_camera(player)
 mode = '='
 turning = '!'
-while True:
+game_time = None
+running = True
+while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             terminate()
 
         button = pygame.key.get_pressed()
-        if button[pygame.K_w]:
+        if button[pygame.K_w]:  # регулируем режим движения
             mode = '+'
         elif button[pygame.K_s]:
             mode = '-'
@@ -433,7 +501,7 @@ while True:
         else:
             mode = '='
 
-        if button[pygame.K_a]:
+        if button[pygame.K_a]:  # регулируем режим поворота
             turning = '+'
         elif button[pygame.K_d]:
             turning = '-'
@@ -447,7 +515,11 @@ while True:
     player.turning(turning)
     player.update_speed(mode)
     player.update()
-    finish.check_finish(player)
+    game_time, flag = finish.check_finish(player)
+    if flag:
+        running = False
     camera.update_camera(player)
     pygame.display.flip()
     clock.tick(FPS)
+
+end_screen(game_time)
