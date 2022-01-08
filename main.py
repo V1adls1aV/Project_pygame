@@ -8,6 +8,7 @@ pygame.init()
 size = WIDTH, HEIGHT = 1920, 1020
 tile_width, tile_height = 300, 300
 screen = pygame.display.set_mode(size)
+pygame.display.set_caption('Dangerous city')
 clock = pygame.time.Clock()
 FPS = 60
 
@@ -535,6 +536,7 @@ class Camera:
             self.apply(sprite)
 
 
+pygame.display.set_icon(load_image('icon.png'))
 car, location = start_screen().result()
 camera = Camera()
 city, player, finish, modify = generate_level(load_level(f'{location}.txt'))
