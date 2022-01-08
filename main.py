@@ -76,13 +76,13 @@ def generate_level(level):
                     f = False
 
             elif level[y][x] == ',':
-                level[y][x] = Road(x, y, 'P')
+                new_level[y][x] = Road(x, y, 'P')
                 if f:
                     gamer = Player(x, y)
                     f = False
 
             elif level[y][x] == '@':
-                finish_tile = level[y][x] = Finish(x, y, *create_road_direction(level, x, y))
+                finish_tile = new_level[y][x] = Finish(x, y, *create_road_direction(level, x, y))
 
             elif level[y][x] == 'X':
                 new_level[y][x] = Police(x, y, *create_road_direction(level, x, y))
@@ -132,8 +132,13 @@ def compare_road_type(t):
 
 def start_screen():
     menu = Menu()
-    menu.add_option('Начать игру', None)
-    menu.add_option('Выйти', terminate)
+    menu.add_option(0, 'Lamborghini')
+    menu.add_option(0, 'Ferrari')
+    menu.add_option(1, 'town')
+    menu.add_option(1, 'city')
+    menu.add_option(1, 'mega_city')
+    menu.add_option(2, 'Начать игру', None)
+    menu.add_option(2, 'Выйти', terminate)
 
     background = load_image('start_screen.png')
     run = True
@@ -144,17 +149,22 @@ def start_screen():
 
             but = pygame.key.get_pressed()
             if but[pygame.K_UP]:
-                menu.change(-1)
+                menu.change(0, -1)
             if but[pygame.K_DOWN]:
-                menu.change(1)
+                menu.change(0, 1)
+            if but[pygame.K_LEFT]:
+                menu.change(-1, 0)
+            if but[pygame.K_RIGHT]:
+                menu.change(1, 0)
             if but[pygame.K_SPACE]:
                 run = menu.choose()
 
         screen.fill((0, 0, 0))
         screen.blit(background, (0, 0))
-        menu.draw(100, 100, 100)
+        menu.draw(100, 100, 500, 200)
         pygame.display.flip()
         clock.tick(FPS)
+    return menu
 
 
 def end_screen(res):
@@ -202,33 +212,74 @@ def end_screen(res):
 
 class Menu:
     def __init__(self):
-        self.buttons = []
-        self.functions = {}
-        self.now_button = 0
+        self.buttons = [[], [], []]
+        self.now_button_0 = 0
+        self.now_button_1 = 0
+        self.now_button_2 = 0
+        self.now_column = 0
+        self.car = None
+        self.location = None
 
-    def add_option(self, option, function):
-        self.buttons.append(option)
-        self.functions[option] = function
+    def add_option(self, column, option, *function):
+        if function:
+            self.buttons[column].append([option, *function])
+        else:
+            self.buttons[column].append(option)
 
-    def draw(self, x, y, delta_h):
+    def draw(self, x, y, delta_x, delta_y):
         font = pygame.font.Font(None, 100)
-        for i in range(len(self.buttons)):
-            if i == self.now_button:
-                screen.blit(font.render(self.buttons[i], True, (255, 155, 0)), (x, y))
-            else:
-                screen.blit(font.render(self.buttons[i], True, (255, 255, 0)), (x, y))
-            y += delta_h
+        for i in range(len(self.buttons[0])):
+            if self.now_button_0 == i:
 
-    def change(self, delta=0):
-        if delta:
-            self.now_button += delta
-        self.now_button = max(0, min(self.now_button, len(self.buttons) - 1))
+                screen.blit(font.render(self.buttons[0][i], True, (255, 155, 0)),
+                            (x, y + delta_y * i))
+            else:
+                screen.blit(font.render(self.buttons[0][i], True, (255, 255, 0)),
+                            (x, y + delta_y * i))
+
+        for i in range(len(self.buttons[1])):
+            if self.now_button_1 == i:
+                screen.blit(font.render(self.buttons[1][i], True, (255, 155, 0)),
+                            (x + delta_x, y + delta_y * i))
+            else:
+                screen.blit(font.render(self.buttons[1][i], True, (255, 255, 0)),
+                            (x + delta_x, y + delta_y * i))
+
+        for i in range(len(self.buttons[2])):
+            if self.now_button_2 == i:
+                screen.blit(font.render(self.buttons[2][i][0], True, (255, 155, 0)),
+                            (x + delta_x + delta_x, y + delta_y * i))
+            else:
+                screen.blit(font.render(self.buttons[2][i][0], True, (255, 255, 0)),
+                            (x + delta_x + delta_x, y + delta_y * i))
+
+    def change(self, delta_x, delta_y):
+        if delta_x:
+            self.now_column += delta_x
+            self.now_column = max(0, min(self.now_column, 2))
+        if delta_y:
+            if self.now_column == 0:
+                self.now_button_0 += delta_y
+                self.now_button_0 = max(0, min(self.now_button_0, len(self.buttons[0]) - 1))
+            elif self.now_column == 1:
+                self.now_button_1 += delta_y
+                self.now_button_1 = max(0, min(self.now_button_1, len(self.buttons[1]) - 1))
+            elif self.now_column == 2:
+                self.now_button_2 += delta_y
+                self.now_button_2 = max(0, min(self.now_button_2, len(self.buttons[2]) - 1))
 
     def choose(self):
-        if self.functions[self.buttons[self.now_button]]:
-            self.functions[self.buttons[self.now_button]]()
-            return True
-        return False
+        if self.now_column == 2:
+            if self.buttons[2][self.now_button_2][1] is not None:
+                self.buttons[2][self.now_button_2][1]()
+                return True
+            self.car = self.buttons[0][self.now_button_0]
+            self.location = self.buttons[1][self.now_button_1]
+            return False
+        return True
+
+    def result(self):
+        return self.car, self.location
 
 
 class Empty(pygame.sprite.Sprite):
@@ -363,13 +414,19 @@ class Finish(Road):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__(all_sprites)
-        self.image = load_image('car.png')
+        self.image = load_image(f'{car}.png')
         self.start_image = self.image
         self.mask = pygame.mask.from_surface(self.image)
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = 25 + x * tile_width, 25 + y * tile_height
-        self.max_front_speed = 30
-        self.max_rear_speed = 7
+        if car == 'Lamborghini':
+            self.max_front_speed = 30
+            self.max_rear_speed = 7
+            self.acceleration = 0.4
+        elif car == 'Ferrari':
+            self.max_front_speed = 25
+            self.max_rear_speed = 10
+            self.acceleration = 0.6
         self.speed = 0
         self.rotation = 0
         self.dx = 0
@@ -380,9 +437,9 @@ class Player(pygame.sprite.Sprite):
 
     def update_speed(self, m):
         if m == '+' and self.speed < self.max_front_speed:
-            self.speed += 0.5
+            self.speed += self.acceleration
         if m == '-' and self.speed > -self.max_rear_speed:
-            self.speed -= 0.5
+            self.speed -= self.acceleration
         if m == '!':
             self.breaking()
         if m == '=':
@@ -478,9 +535,9 @@ class Camera:
             self.apply(sprite)
 
 
-start_screen()
+car, location = start_screen().result()
 camera = Camera()
-city, player, finish, modify = generate_level(load_level('map.txt'))
+city, player, finish, modify = generate_level(load_level(f'{location}.txt'))
 camera.update_camera(player)
 mode = '='
 turning = '!'
