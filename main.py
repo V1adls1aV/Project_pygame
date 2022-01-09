@@ -12,12 +12,6 @@ pygame.display.set_caption('Dangerous city')
 clock = pygame.time.Clock()
 FPS = 60
 
-all_sprites = pygame.sprite.Group()
-tiles_group = pygame.sprite.Group()
-empty_group = pygame.sprite.Group()
-police_group = pygame.sprite.Group()
-covers = []
-
 
 def terminate():
     pygame.quit()
@@ -182,11 +176,15 @@ def end_screen(res):
         background = load_image('defeat_screen.png')
         result_image = load_image('banned.png')
 
-    run = True
-    while run:
+    running = True
+    while running:
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 terminate()
+
+            button = pygame.key.get_pressed()
+            if button[pygame.K_SPACE]:
+                running = False
 
         screen.fill((0, 0, 0))
         screen.blit(background, (0, 0))
@@ -209,6 +207,7 @@ def end_screen(res):
                 rotation += 15
         pygame.display.flip()
         clock.tick(FPS)
+    start_game()  # запуск нового цикла игры
 
 
 class Menu:
@@ -536,49 +535,64 @@ class Camera:
             self.apply(sprite)
 
 
-pygame.display.set_icon(load_image('icon.png'))
-car, location = start_screen().result()
-camera = Camera()
-city, player, finish, modify = generate_level(load_level(f'{location}.txt'))
-camera.update_camera(player)
-mode = '='
-turning = '!'
-game_time = None
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            terminate()
+all_sprites, tiles_group, empty_group, police_group, covers, \
+    car, location, camera, city, player, finish, modify = [None] * 12
 
-        button = pygame.key.get_pressed()
-        if button[pygame.K_w]:  # регулируем режим движения
-            mode = '+'
-        elif button[pygame.K_s]:
-            mode = '-'
-        elif button[pygame.K_SPACE]:
-            mode = '!'
-        else:
-            mode = '='
 
-        if button[pygame.K_a]:  # регулируем режим поворота
-            turning = '+'
-        elif button[pygame.K_d]:
-            turning = '-'
-        else:
-            turning = '!'
-
-    screen.fill((0, 100, 0))
-    tiles_group.draw(screen)
-    for cover in covers:
-        cover.show()
-    player.turning(turning)
-    player.update_speed(mode)
-    player.update()
-    game_time, flag = finish.check_finish(player)
-    if flag:
-        running = False
+def start_game():
+    global all_sprites, tiles_group, empty_group, police_group,\
+        covers, car, location, camera, city, player, finish, modify
+    all_sprites = pygame.sprite.Group()
+    tiles_group = pygame.sprite.Group()
+    empty_group = pygame.sprite.Group()
+    police_group = pygame.sprite.Group()
+    covers = []
+    car, location = start_screen().result()
+    camera = Camera()
+    city, player, finish, modify = generate_level(load_level(f'{location}.txt'))
     camera.update_camera(player)
-    pygame.display.flip()
-    clock.tick(FPS)
+    mode = '='
+    turning = '!'
+    game_time = None
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
 
-end_screen(game_time)
+            button = pygame.key.get_pressed()
+            if button[pygame.K_w]:  # регулируем режим движения
+                mode = '+'
+            elif button[pygame.K_s]:
+                mode = '-'
+            elif button[pygame.K_SPACE]:
+                mode = '!'
+            else:
+                mode = '='
+
+            if button[pygame.K_a]:  # регулируем режим поворота
+                turning = '+'
+            elif button[pygame.K_d]:
+                turning = '-'
+            else:
+                turning = '!'
+
+        screen.fill((0, 100, 0))
+        tiles_group.draw(screen)
+        for cover in covers:
+            cover.show()
+        player.turning(turning)
+        player.update_speed(mode)
+        player.update()
+        game_time, flag = finish.check_finish(player)
+        if flag:
+            running = False
+        camera.update_camera(player)
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    end_screen(game_time)
+
+
+pygame.display.set_icon(load_image('icon.png'))
+start_game()
